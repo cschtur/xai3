@@ -1,0 +1,120 @@
+---
+title: "XAI3"
+author: "Sergio and Claudia"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(randomForest)
+library(pdp)
+library(ggplot2)
+library(dplyr)
+
+# Cargar datos
+bikes <- read.csv("day.csv")
+
+# Crear variable days since 2011
+bikes$days_since_2011 <- as.numeric(as.Date(bikes$dteday) - as.Date("2011-01-01"))
+
+# Random Forest
+set.seed(123)
+rf_model <- randomForest(
+  cnt ~ days_since_2011 + temp + hum + windspeed,
+  data = bikes,
+  ntree = 300,
+  importance = TRUE
+)
+
+# PDP 1D
+features <- c("days_since_2011", "temp", "hum", "windspeed")
+
+pdp_list <- lapply(features, function(var) {
+  partial(
+    rf_model,
+    pred.var = var,
+    train = bikes
+  ) %>%
+    autoplot() +
+    labs(
+      title = paste("Partial Dependence of", var),
+      y = "Predicted bike rentals"
+    )
+})
+
+# Mostrar gráficos
+pdp_list[[1]]
+pdp_list[[2]]
+pdp_list[[3]]
+pdp_list[[4]]
+```
+
+```{r}
+set.seed(123)
+bikes_sample <- bikes %>% sample_n(500)
+
+# 2D PDP
+pdp_2d <- partial(
+  rf_model,
+  pred.var = c("temp", "hum"),
+  train = bikes_sample,
+  grid.resolution = 20
+)
+
+# Gráfico 2D
+ggplot(pdp_2d, aes(x = temp, y = hum, fill = yhat)) +
+  geom_tile(width = 0.03, height = 0.05) +
+  scale_fill_viridis_c(name = "Predicted\nrentals") +
+  labs(
+    title = "2D Partial Dependence Plot",
+    x = "Temperature",
+    y = "Humidity"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+# Cargar datos
+houses <- read.csv("kc_house_data.csv")
+
+# Random Forest para el precio
+set.seed(123)
+rf_house <- randomForest(
+  price ~ bedrooms + bathrooms + sqft_living + sqft_lot + floors + yr_built,
+  data = houses,
+  ntree = 300,
+  importance = TRUE
+)
+
+# Submuestra para PDP (por tamaño del dataset)
+set.seed(123)
+houses_sample <- houses %>% sample_n(500)
+
+# PDP 1D para las variables solicitadas
+vars <- c("bedrooms", "bathrooms", "sqft_living", "floors")
+
+pdp_house <- lapply(vars, function(v) {
+  partial(
+    rf_house,
+    pred.var = v,
+    train = houses_sample
+  ) %>%
+    autoplot() +
+    labs(
+      title = paste("Partial Dependence of", v),
+      y = "Predicted house price"
+    )
+})
+
+# Mostrar gráficos
+pdp_house[[1]]
+pdp_house[[2]]
+pdp_house[[3]]
+pdp_house[[4]]
+```
+
